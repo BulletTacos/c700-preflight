@@ -14851,7 +14851,8 @@ function bar(p,gr,tot,len){
   const max=Math.max(len||0,tot||0,1);
   const b=$(p+"bar"); b.querySelector(".gr").style.width=(gr/max*100)+"%"; b.querySelector(".tot").style.width=(tot/max*100)+"%";
   b.style.borderColor=len&&tot>len?"var(--bad)":"var(--line)";
-  $(p+"barlab").innerHTML=`<span>0</span><span>${len?"runway "+fmt(len)+" ft":"enter runway length"}</span>`;
+  const lg=`<span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;vertical-align:-1px"></span> estimate &nbsp;<span style="display:inline-block;width:10px;height:10px;background:var(--accent);opacity:.35;border-radius:2px;vertical-align:-1px"></span> ${p==="to"?"+15% margin":"factored (÷0.6)"}</span>`;
+  $(p+"barlab").innerHTML=`${lg}<span>${len?"runway "+fmt(len)+" ft":"enter runway length"}</span>`;
 }
 
 /* ---------- events ---------- */
