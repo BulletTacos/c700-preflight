@@ -153,6 +153,10 @@ footer{max-width:1280px;margin:0 auto;padding:0 16px 30px;color:var(--mute);font
     <!-- FUEL -->
     <section class="card" id="fuelcard">
       <h2><span class="n">2</span>Fuel &amp; Endurance</h2>
+      <div class="row" style="grid-template-columns:1fr 1fr;margin-bottom:2px">
+        <label class="cb"><input type="radio" name="rules" id="rIFR" checked> IFR</label>
+        <label class="cb"><input type="radio" name="rules" id="rVFR"> VFR (17,500 ft max)</label>
+      </div>
       <div class="row">
         <label class="f">Cruise altitude (ft MSL) <span id="caltTag" class="hint"></span><input type="number" id="calt" value="35000" step="1000"></label>
         <label class="f">Cruise speed<select id="cmode"><option value="LRC">Long-range cruise (M.78)</option><option value="NORM" selected>Normal cruise (M.80)</option><option value="HSC">High-speed cruise (M.84 / 483 KTAS)</option></select></label>
@@ -14383,7 +14387,9 @@ function vfrAltitude(apD,apA,mc,dep,arr){
   const minAlt=maxT+clear;
   const east=mc<180; // IFR: 0-179 odd thousands, 180-359 even thousands; above FL410 east FL450, west FL430
   const dTrip=gcNM(apD,apA); const cands=[];
-  for(let a=3000;a<=C7.CEIL;a+=1000){ const th=a/1000; const ok=a<=41000?((th%2===1)===east):(east?a===45000:a===43000);
+  const VFRm=$("rVFR").checked;
+  if(VFRm){ for(let th=3;th<=17;th++){ const a=th*1000+500; if(((th%2===1)===east)&&a>=minAlt&&a-Math.max(dep.elev,arr.elev)>=1500) cands.push(a); } }
+  else for(let a=3000;a<=C7.CEIL;a+=1000){ const th=a/1000; const ok=a<=41000?((th%2===1)===east):(east?a===45000:a===43000);
     if(ok&&a>=minAlt&&a-Math.max(dep.elev,arr.elev)>=1500) cands.push(a); }
   let alt=null;
   for(const a of cands){ const c=climbPath({elev:dep.elev,altim:dep.alt,oat:dep.oat,target:a,headwind:num("cwind")||0}); if(!c.reached) break;
@@ -14392,11 +14398,11 @@ function vfrAltitude(apD,apA,mc,dep,arr){
   const capped=false;
   const climbPre=(alt||caltManual)?climbPath({elev:dep.elev,altim:dep.alt,oat:dep.oat,target:caltManual?num("calt"):alt,headwind:num("cwind")||0}):null;
   const curA=num("calt"); const lowNow=(capped||alt==null||caltManual)&&curA&&curA<minAlt;
-  $("caltTag").innerHTML=lowNow?`<span style="color:var(--bad)">⚠ too low for terrain</span>`:caltManual?"(your entry)":alt&&!capped?"(auto IFR altitude)":"";
-  const dirTxt=(east?`Eastbound (magnetic course ${String(Math.round(mc)).padStart(3,"0")}°): odd thousands`:`Westbound (magnetic course ${String(Math.round(mc)).padStart(3,"0")}°): even thousands`)+`. Highest altitude where climb and descent take no more than half the ${fmt(dTrip)} nm trip`;
+  $("caltTag").innerHTML=lowNow?`<span style="color:var(--bad)">⚠ too low for terrain</span>`:caltManual?"(your entry)":alt&&!capped?(VFRm?"(auto VFR altitude)":"(auto IFR altitude)"):"";
+  const dirTxt=(east?`Eastbound (magnetic course ${String(Math.round(mc)).padStart(3,"0")}°): odd thousands${VFRm?" + 500":""}`:`Westbound (magnetic course ${String(Math.round(mc)).padStart(3,"0")}°): even thousands${VFRm?" + 500":""}`)+`. Highest altitude where climb and descent take no more than half the ${fmt(dTrip)} nm trip`;
   const srcTxt=src==="dem"?`Highest terrain within 2 nm of course: <b>${fmt(maxT)} ft</b> at ${fmt(maxAt)} nm.`:src==="loading"?`Loading terrain…`:`<b>Terrain data unavailable here.</b> Estimate ${fmt(maxT)} ft from airport elevations near the route; mountains between airports are NOT included. Open https://bullettacos.github.io/c700-preflight/ to get the real terrain profile, and check the sectional MEFs.`;
-  if(capped||alt==null){ setH(box,`<div class="vfr bad"><div>${dirTxt}.</div><div>${srcTxt} No IFR altitude up to FL450 clears the terrain by ${fmt(clear)} ft. Plan a different route.</div></div>`); }
-  else setH(box,`<div class="vfr"><div>Recommended IFR altitude: <span class="big">${alt>=18000?"FL"+(alt/100):fmt(alt)+" ft"}</span>${caltManual&&num("calt")!==alt?` <button id="useVfr">Use it</button>`:""}</div><div>${dirTxt}. ${srcTxt} Clearance used: ${fmt(clear)} ft${mountain?" (mountainous terrain)":""}.</div>${caltManual&&num("calt")&&!vfrOK(num("calt"),east,minAlt)?`<div style="color:var(--bad)">Your ${fmt(num("calt"))} ft ${num("calt")<minAlt?"is too low for the terrain":"doesn't match the direction-of-flight rule"}.</div>`:""}${climbMsg(climbPre)}</div>`);
+  if(capped||alt==null){ setH(box,`<div class="vfr bad"><div>${dirTxt}.</div><div>${srcTxt} ${VFRm?`No VFR altitude at or below 17,500 ft clears the terrain by ${fmt(clear)} ft. Fly IFR or plan a different route.`:`No IFR altitude up to FL450 clears the terrain by ${fmt(clear)} ft. Plan a different route.`}</div></div>`); }
+  else setH(box,`<div class="vfr"><div>Recommended ${VFRm?"VFR":"IFR"} altitude: <span class="big">${alt>=18000?"FL"+(alt/100):fmt(alt)+" ft"}</span>${caltManual&&num("calt")!==alt?` <button id="useVfr">Use it</button>`:""}</div><div>${dirTxt}. ${srcTxt} Clearance used: ${fmt(clear)} ft${mountain?" (mountainous terrain)":""}.</div>${caltManual&&num("calt")&&!vfrOK(num("calt"),east,minAlt)?`<div style="color:var(--bad)">Your ${fmt(num("calt"))} ft ${num("calt")<minAlt?"is too low for the terrain":"doesn't match the direction-of-flight rule"}.</div>`:""}${climbMsg(climbPre)}</div>`);
   // climb path vs terrain (computed before the text box so it can report on it)
   const caF=caltManual?num("calt"):alt; let climb=null;
   if(caF){ climb=climbPath({elev:dep.elev,altim:dep.alt,oat:dep.oat,target:caF,headwind:num("cwind")||0});
@@ -14410,7 +14416,7 @@ function vfrAltitude(apD,apA,mc,dep,arr){
   }
   // profile chart
   if(prof){ const W=460,H=150,L=40,R=8,Tp=18,B=18, d=prof[prof.length-1].along||1;
-    const top=Math.max(alt||0,maxT+clear,...prof.map(p=>p.ft))+500, bot=Math.max(0,Math.min(...prof.map(p=>p.ft))-500);
+    const top=Math.max(alt||0,caF||0,maxT+clear,...prof.map(p=>p.ft))+500, bot=Math.max(0,Math.min(...prof.map(p=>p.ft))-500);
     const X=a=>L+a/d*(W-L-R), Y=f=>H-B-(f-bot)/(top-bot)*(H-Tp-B);
     let s=`<polygon points="${X(0)},${Y(bot)} ${prof.map(p=>X(p.along).toFixed(1)+","+Y(p.ft).toFixed(1)).join(" ")} ${X(d)},${Y(bot)}" fill="#8a6d3b" fill-opacity=".45" stroke="#8a6d3b"/>`;
     const ca=caltManual?num("calt"):alt;
@@ -14625,28 +14631,42 @@ function recompute(){
       if(drop<=0){ setH(box,`<div class="vfr">Cruise altitude ${fmt(cAlt)} ft is at or below the destination pattern altitude (${fmt(tpaA)} ft). No descent needed.</div>`);
         if(CHART){ const svg=$("profile"); svg.querySelectorAll(".todl").forEach(e=>e.remove()); svg.insertAdjacentHTML("beforeend",`<line class="todl" x1="${CHART.X(CHART.toc||0)}" x2="${CHART.X(dist)}" y1="${CHART.Y(cAlt)}" y2="${CHART.Y(cAlt)}" stroke="var(--accent)" stroke-width="2.5"/>`); } }
       else{
-        const dNm=drop/1000*3, dGs=Math.max(150,(gs+230)/2), dMin=dNm/dGs*60, fromDest=dNm+5, fromDep=dist-fromDest;
+        const dGs=Math.max(150,(gs+230)/2), CLR=1000, NORM=1000/3; // 3:1 = 333 ft per nm
+        // terrain-safe plan: stay 1,000 ft above terrain between top of descent and 5 nm out
+        let ctrl=null, G=0;
+        if(CHART&&CHART.terrain){ for(const q of CHART.terrain){ const dq=dist-q.along; if(dq<=5||dq>dist) continue; const req=q.ft+CLR; if(req<=tpaA) continue;
+            const g=(req-tpaA)/(dq-5); if(g>G){G=g;ctrl={dq,req,terr:q.ft};} } }
+        const step=ctrl&&G>NORM;
+        let L=null,d1,dNm,fromDest,g2=null,vs2=null,dMin;
+        if(step){ L=Math.min(cAlt,Math.ceil(ctrl.req/100)*100); d1=Math.max(0,(cAlt-L)/1000*3); fromDest=ctrl.dq+d1; dNm=fromDest-5;
+          g2=(L-tpaA)/Math.max(0.5,ctrl.dq-5); vs2=g2*200/60; dMin=d1/dGs*60+(ctrl.dq-5)/200*60; }
+        else { dNm=drop/1000*3; fromDest=dNm+5; dMin=dNm/dGs*60; }
+        const fromDep=dist-fromDest;
         const clbNm=vfr&&vfr.climb&&vfr.climb.reached?vfr.climb.nm:clb.nm;
         tod={cAlt,tpaA,dMin,dNm,fromDest,fromDep};
         const todTime=etaDate?new Date(etaDate.getTime()-(dMin/60+5/dGs)*3600e3):null;
         let warn="";
         if(fromDep<clbNm){ warn=`<div style="color:var(--bad)">Not enough distance: you'd need ${fmt(clbNm)} nm to climb and ${fmt(fromDest)} nm to descend, but the trip is only ${fmt(dist)} nm. Pick a lower cruise altitude.</div>`;
-          todNotes.push(["warn",`Trip too short for ${fmt(cAlt)} ft: there's no room to climb and then descend on a 3:1 path. Pick a lower cruise altitude.`]); }
-        // terrain check along descent
-        if(CHART&&CHART.terrain){ let worst=null;
-          for(const q of CHART.terrain){ if(q.along<fromDep||q.along>dist-5) continue;
-            const f=(q.along-fromDep)/Math.max(0.1,dNm), a=cAlt-f*drop; const clr=a-q.ft; if(!worst||clr<worst.clr) worst={clr,at:dist-q.along,terr:q.ft}; }
-          if(worst&&worst.clr<300){ warn+=`<div style="color:var(--bad)">The descent path comes within ${fmt(Math.max(0,worst.clr))} ft of ${fmt(worst.terr)} ft terrain ${fmt(worst.at)} nm from ${arr.id}. Start down later, or descend more steeply once past the high ground.</div>`;
-            todNotes.push(["bad",`Descent path too close to terrain: ${fmt(worst.clr)} ft clearance ${fmt(worst.at)} nm from ${arr.id}. Delay the descent until past the high ground.`]); }
-          else if(worst&&worst.clr<1000){ warn+=`<div style="color:var(--warn)">Descent passes ${fmt(worst.clr)} ft above ${fmt(worst.terr)} ft terrain ${fmt(worst.at)} nm from ${arr.id}.</div>`;
-            todNotes.push(["warn",`Descent passes only ${fmt(worst.clr)} ft above terrain ${fmt(worst.at)} nm from ${arr.id}.`]); } }
-        setH(box,`<div class="vfr"><div>Top of descent: <span class="big">${fmt(fromDest)} nm</span> from ${arr.id}${fromDep>0?` (${fmt(fromDep)} nm from ${dep.id})`:""}${todTime?`, about ${todTime.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`:""}</div>
-          <div>Descend ${fmt(cAlt)} → ${fmt(tpaA)} ft (1,500 ft above the field) on a 3:1 path: ${fmt(dNm)} nm, about ${fmt(dMin)} min, roughly ${fmt(Math.round(dGs*5.3/100)*100)} fpm. Level 5 nm out.</div>${warn}</div>`);
+          todNotes.push(["warn",`Trip too short for ${fmt(cAlt)} ft: there's no room to climb and then descend. Pick a lower cruise altitude.`]); }
+        let body;
+        if(step){
+          const cAltLow=L>=cAlt;
+          body=`<div><b>Terrain near ${arr.id}:</b> ${fmt(ctrl.terr)} ft, ${fmt(ctrl.dq)} nm out. A normal 3:1 descent would pass too close.</div>
+            <div>1. ${cAltLow?`Stay at ${fmt(cAlt)} ft`:`Descend 3:1 from ${fmt(cAlt)} to <b>${fmt(L)} ft</b>`}, crossing ${fmt(ctrl.dq)} nm from ${arr.id} at or above ${fmt(L)} ft (1,000 ft above the terrain).</div>
+            <div>2. Then descend to ${fmt(tpaA)} ft (pattern altitude) by 5 nm out: <b>${fmt(g2)} ft per nm</b>, about ${fmt(Math.round(vs2/100)*100)} fpm at 200 kt.</div>`;
+          if(g2>600){ body+=`<div style="color:var(--bad)">That's too steep for a straight-in (about ${fmt(g2/NORM,1)}× a normal descent). Cross the high ground at ${fmt(L)} ft, then lose altitude in a wide circle over the valley or on an extended downwind before joining the pattern.</div>`;
+            todNotes.push(["bad",`Terrain near ${arr.id}: cross ${fmt(ctrl.dq)} nm out at or above ${fmt(L)} ft. The straight-in descent after that is too steep (${fmt(g2)} ft/nm), so plan to circle down over the valley.`]); }
+          else if(g2>450){ body+=`<div style="color:var(--warn)">Steep: about ${fmt(g2/NORM,1)}× a normal descent. Slow to 200 kt and use speedbrakes.</div>`;
+            todNotes.push(["warn",`Terrain near ${arr.id}: cross ${fmt(ctrl.dq)} nm out at or above ${fmt(L)} ft, then a steep ${fmt(g2)} ft/nm descent to the pattern.`]); }
+          else todNotes.push(["warn",`Terrain near ${arr.id}: cross ${fmt(ctrl.dq)} nm out at or above ${fmt(L)} ft, then ${fmt(g2)} ft/nm to the pattern.`]);
+        } else body=`<div>Descend ${fmt(cAlt)} → ${fmt(tpaA)} ft (1,500 ft above the field) on a 3:1 path: ${fmt(dNm)} nm, about ${fmt(dMin)} min, roughly ${fmt(Math.round(dGs*5.3/100)*100)} fpm. Level 5 nm out.${CHART&&CHART.terrain?" Clears the terrain by at least 1,000 ft.":""}</div>`;
+        setH(box,`<div class="vfr"><div>Top of descent: <span class="big">${fmt(fromDest)} nm</span> from ${arr.id}${fromDep>0?` (${fmt(fromDep)} nm from ${dep.id})`:""}${todTime?`, about ${todTime.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`:""}</div>${body}${warn}</div>`);
         // overlay on the profile chart
         if(CHART){ const {X,Y}=CHART, svg=$("profile"); svg.querySelectorAll(".todl").forEach(e=>e.remove());
           const x1=X(Math.max(0,fromDep)), x2=X(dist-5), x3=X(dist), x0=X(CHART.toc!=null?Math.min(CHART.toc,Math.max(0,fromDep)):0);
+          const mid=step?` ${X(dist-ctrl.dq)},${Y(L)}`:"";
           svg.insertAdjacentHTML("beforeend",`<line class="todl" x1="${x0}" x2="${x1}" y1="${Y(cAlt)}" y2="${Y(cAlt)}" stroke="var(--accent)" stroke-width="2.5"/><text class="todl" x="${(x0+x1)/2}" y="${Y(cAlt)-5}" font-size="10" text-anchor="middle" fill="var(--accent)">${fmt(cAlt)} ft</text>`+
-            `<polyline class="todl" points="${x1},${Y(cAlt)} ${x2},${Y(tpaA)} ${x3},${Y(tpaA)}" fill="none" stroke="var(--warn)" stroke-width="2.5"/><circle class="todl" cx="${x1}" cy="${Y(cAlt)}" r="3" fill="var(--warn)"/><text class="todl" x="${x1}" y="${Y(cAlt)-6}" font-size="9" text-anchor="middle" fill="var(--warn)">TOD ${fmt(fromDest)} nm out</text><text class="todl" x="${x3-2}" y="${Y(tpaA)+11}" font-size="9" text-anchor="end" fill="var(--warn)">TPA ${fmt(tpaA)}</text>`); }
+            `<polyline class="todl" points="${x1},${Y(cAlt)}${mid} ${x2},${Y(tpaA)} ${x3},${Y(tpaA)}" fill="none" stroke="var(--warn)" stroke-width="2.5"/><circle class="todl" cx="${x1}" cy="${Y(cAlt)}" r="3" fill="var(--warn)"/><text class="todl" x="${x1}" y="${Y(cAlt)-6}" font-size="9" text-anchor="middle" fill="var(--warn)">TOD ${fmt(fromDest)} nm out</text><text class="todl" x="${x3-2}" y="${Y(tpaA)+11}" font-size="9" text-anchor="end" fill="var(--warn)">TPA ${fmt(tpaA)}</text>`); }
       }
     } else setH(box,"");
   }
@@ -14674,14 +14694,14 @@ function recompute(){
     t+=`<tr class="tot"><td>Trip total, no reserve</td><td></td><td>${g(baseGal)}</td></tr>`;
     const d=baseGal!=null?baseGal+r30:null, n=baseGal!=null?baseGal+r45:null;
     const mk=(lab,tot,rv,sel)=>`<tr${sel?' style="font-weight:600"':''}><td>${lab}${sel?" ◀":""}</td><td>+${g(rv)} reserve</td><td style="color:${tot==null?"inherit":tot>fob?"var(--bad)":"var(--ok)"}">${g(tot)}</td></tr>`;
-    t+=mk("IFR reserve (45 min)",n,r45,true);
+    t+=mk(`${$("rVFR").checked?"VFR":"IFR"} reserve (45 min)`,n,r45,true);
     t+=`<tr><td>Fuel on board</td><td>${fmt(usable)} max</td><td>${g(fob)}</td></tr>`;
     if(baseGal!=null) t+=`<tr><td>Extra over requirement</td><td></td><td>${g(fob-(resvMin===45?n:d))}</td></tr>`;
     $("fuelplan").innerHTML=t;
     const need=baseGal!=null?(resvMin===45?n:d):null, ft2=$("fuelTotal");
     if(need==null){ft2.className="bigtotal none";ft2.innerHTML=`<span class="lab">Total estimated fuel needed</span><span class="num">—</span><span class="det">Pick a destination (or enter a distance or flight time) to get the trip total.</span>`;}
     else{ft2.className="bigtotal "+(need>fob?"bad":"ok");
-      ft2.innerHTML=`<span class="lab">Total estimated fuel needed · IFR reserve</span><span class="num">${g(need)} lb</span>`+(tripHr!=null?`<span class="det" style="flex-basis:100%"><b>ETE ${hm(tripHr)}</b>${etaDate?` · depart ${clock(new Date(dWhen))} → arrive ${clock(etaDate)}`:""}${sunInfo?` · sunset ${sunInfo.S.sunset.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}${night?" · <b>NIGHT</b>":""}`:""}</span>`:"")+
+      ft2.innerHTML=`<span class="lab">Total estimated fuel needed · ${$("rVFR").checked?"VFR":"IFR"} reserve (45 min)</span><span class="num">${g(need)} lb</span>`+(tripHr!=null?`<span class="det" style="flex-basis:100%"><b>ETE ${hm(tripHr)}</b>${etaDate?` · depart ${clock(new Date(dWhen))} → arrive ${clock(etaDate)}`:""}${sunInfo?` · sunset ${sunInfo.S.sunset.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}${night?" · <b>NIGHT</b>":""}`:""}</span>`:"")+
       `<span class="det">${g(baseGal)} for the trip (start, taxi, climb, cruise, destination taxi${useAlt?", alternate":""}) + ${g(resvMin===45?r45:r30)} reserve. `+
       (need>fob?`<b>You have ${g(fob)} lb: ${g(need-fob)} lb short.</b>`:`You have ${g(fob)} lb, ${g(fob-need)} extra.`)+`</span>`;}
   }
@@ -14692,7 +14712,8 @@ function recompute(){
   if(fob>usable) fnotes.push(["bad",`${fmt(fob)} lb is more than the ${fmt(usable)} lb usable fuel.`]);
   if(reqGal!=null&&reqGal>fob) fnotes.push(["bad",`Not enough fuel: need ${fmt(reqGal)} lb including reserve, have ${fmt(fob)}.`]);
   else if(reqGal!=null) fnotes.push(["ok",`You land with ${fmt(ldgFuel)} lb (${fmt(ldgFuel/perf.gph*60)} min at cruise burn). Reserve required is ${fmt(resvGal)} lb.`]);
-  if(!useAlt&&tripFuel!=null) fnotes.push(["warn","No alternate planned. IFR rules require one unless the destination forecast meets the 1-2-3 rule (14 CFR 91.169)."]);
+  if($("rVFR").checked&&calt>=18000) fnotes.push(["bad",`VFR isn't allowed at ${fmt(calt)} ft. Class A airspace starts at 18,000 ft. Fly IFR or cruise at 17,500 ft or below.`]);
+  if($("rIFR").checked&&!useAlt&&tripFuel!=null) fnotes.push(["warn","No alternate planned. IFR rules require one unless the destination forecast meets the 1-2-3 rule (14 CFR 91.169)."]);
   if(tripFuel==null) fnotes.push(["ok","Enter a distance or flight time to get trip fuel. The landing W&B point assumes you land with reserve fuel only."]);
   $("fuelres").innerHTML=resBox([
     ["Course (true / magnetic)",tc!=null?`${String(Math.round(tc)).padStart(3,"0")}° / ${String(Math.round(mc)).padStart(3,"0")}°`:"—"],
@@ -14801,8 +14822,10 @@ function recompute(){
   const catNotes=[];
   const doCat=(p,ap,label)=>{ const c=flightCat(ap.vis,ap.ceil); const el=$(p+"_cat"); el.textContent=c; el.className="cat "+c;
     const d=`${label}: ${c} (visibility ${ap.vis==null?"?":fmt(ap.vis,ap.vis<3?2:0)} SM, ceiling ${ap.ceil==null?"none":fmt(ap.ceil)+" ft"})`;
-    if(c==="IFR") catNotes.push(["warn",d+". IFR conditions: file IFR and brief the approach."]);
-    if(c==="LIFR") catNotes.push(["warn",d+". Low IFR: check approach minimums and have a good alternate."]);
+    const vfrM=$("rVFR").checked;
+    if(c==="MVFR"&&vfrM) catNotes.push(["warn",d+". Marginal VFR: plan for lower ceilings and visibility, and have a way out."]);
+    if(c==="IFR") catNotes.push([vfrM?"bad":"warn",d+(vfrM?". Below VFR minimums: no VFR flight.":". IFR conditions: file IFR and brief the approach.")]);
+    if(c==="LIFR") catNotes.push([vfrM?"bad":"warn",d+(vfrM?". Low IFR: no VFR flight.":". Low IFR: check approach minimums and have a good alternate.")]);
     if(ap.wxs&&(ap.wxs.wx||[]).some(t=>/TS/.test(t))) catNotes.push(["bad",`${label}: thunderstorms reported or forecast.`]);
     if(ap.wxs&&ap.wxs.nearest) catNotes.push(["warn",`${label}: no weather reported there. Using ${ap.wxs.nearest.id}, ${Math.round(ap.wxs.nearest.nm)} nm away. Actual conditions may differ.`]);
     return c; };
@@ -14840,7 +14863,7 @@ function recompute(){
     [`Landing ${arr.id} ${arr.rwy}`,ld.err?"NO DATA":fmt(ld.tot)+" ft",ld.err?"see notes":`${arrCat} · est ${fmt(ld.gr)} · rwy ${fmt(arr.len)}`,cls(ld.err||(ldPct>1)||awc.xwg>XWIND_DEMO||/IFR/.test(arrCat),ldPct>0.7||arrCat==="MVFR")],
     ["ETE / ETA",tripHr!=null?hm(tripHr):"—",tripHr!=null?(etaDate?`arrive ${clock(etaDate)} · ${fmt(dist||0)} nm`:`${fmt(dist||0)} nm`):"enter destination",cls(false,false)],
     ["Endurance",hm(endur),`${hm(endurResv)} to reserve · ${fmt(perf.gph)} lb/hr`,cls(!(endurResv>0),tripHr!=null&&endurResv<tripHr+0.25)],
-    [`Fuel required (IFR${useAlt?" + alt":""})`,reqGal!=null?fmt(reqGal)+" lb":"—",reqGal!=null?`have ${fmt(fob)} · land w/ ${fmt(ldgFuel)}`:"enter distance or time",cls(reqGal!=null&&reqGal>fob,false)]
+    [`Fuel required (${$("rVFR").checked?"VFR":"IFR"}${useAlt?" + alt":""})`,reqGal!=null?fmt(reqGal)+" lb":"—",reqGal!=null?`have ${fmt(fob)} · land w/ ${fmt(ldgFuel)}`:"enter distance or time",cls(reqGal!=null&&reqGal>fob,false)]
   ];
   if(!depSet) chips[2]=["Takeoff","—","enter departure airport",""];
   if(!arrSet) chips[3]=["Landing","—","enter destination airport",""];
